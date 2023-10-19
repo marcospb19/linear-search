@@ -1,6 +1,11 @@
 #![feature(array_windows)]
 
-use std::{hint::black_box, time::Duration};
+use std::{
+    hint::black_box,
+    sync::Arc,
+    thread::{self, available_parallelism},
+    time::Duration,
+};
 
 use fakeit::datetime;
 use rand::{thread_rng, Rng};
@@ -32,6 +37,7 @@ fn run_benchmarks() {
     benchmark("needle", || needle_crate(text, black_box(&nanos)));
     benchmark("sum_3", || sum_search3(text, black_box(&nanos)));
     benchmark("boyer-moore-magiclen", || boyer_moore_magiclen(text, black_box(&nanos)));
+    benchmark("threaded-sum-search", || threaded_sum_search(text, black_box(&nanos)));
     // benchmark("sum_search3", || sum_search3(text, black_box(&nanos)));
 }
 
@@ -50,6 +56,7 @@ fn run_tests() {
             needle_crate,
             sum_search3,
             boyer_moore_magiclen,
+            threaded_sum_search,
         ]
         .map(|f| f(haystack, needle))
         .array_windows::<2>()
@@ -330,6 +337,48 @@ fn boyer_moore_magiclen(haystack: &str, needle: &str) -> bool {
         .unwrap()
         .find_first_in(haystack)
         .is_some()
+}
+
+fn threaded_sum_search(haystack: &str, needle: &str) -> bool {
+    const TOTAL_MIN_LEN_HEURISTIC: usize = 1024;
+
+    if haystack.len() < TOTAL_MIN_LEN_HEURISTIC {
+        sum_search(haystack, needle)
+    } else {
+        let haystack: Arc<str> = Arc::from(haystack);
+        let needle: Arc<str> = Arc::from(needle);
+
+        if needle.is_empty() {
+            return true;
+        }
+        if needle.len() == haystack.len() {
+            return haystack == needle;
+        }
+        if needle.len() > haystack.len() {
+            return false;
+        }
+
+        let max_thread_count = available_parallelism().unwrap().get();
+
+        let thread_count = (haystack.len() - needle.len()).min(max_thread_count);
+
+        let mut threads = Vec::with_capacity(thread_count);
+        for i in 0..thread_count {
+            let haystack = haystack.clone();
+            let needle = needle.clone();
+            threads.push(thread::spawn(move || {
+                let start = i * (haystack.len() - needle.len()) / thread_count;
+                let end = ((i + 1) * haystack.len() + (thread_count - 1 - i) * needle.len()) / thread_count;
+                sum_search(&haystack[start..end], &needle[..])
+            }));
+        }
+
+        let mut contains = false;
+        for thread in threads {
+            contains |= thread.join().unwrap();
+        }
+        contains
+    }
 }
 
 fn run_and_time_it(f: impl Fn() -> bool) -> Duration {
