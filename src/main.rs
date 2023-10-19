@@ -340,9 +340,9 @@ fn boyer_moore_magiclen(haystack: &str, needle: &str) -> bool {
 }
 
 fn threaded_sum_search(haystack: &str, needle: &str) -> bool {
-    const TOTAL_MIN_LEN_HEURISTIC: usize = 1024;
+    const MIN_LEN_HEURISTIC: usize = 1024;
 
-    if haystack.len() < TOTAL_MIN_LEN_HEURISTIC {
+    if haystack.len() < MIN_LEN_HEURISTIC {
         sum_search(haystack, needle)
     } else {
         let haystack: Arc<str> = Arc::from(haystack);
