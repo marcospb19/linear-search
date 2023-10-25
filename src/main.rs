@@ -367,8 +367,10 @@ fn threaded_sum_search(haystack: &str, needle: &str) -> bool {
             let haystack = haystack.clone();
             let needle = needle.clone();
             threads.push(thread::spawn(move || {
-                let start = i * (haystack.len() - needle.len()) / thread_count;
-                let end = ((i + 1) * haystack.len() + (thread_count - 1 - i) * needle.len()) / thread_count;
+                let start = (i * (haystack.len() - needle.len() + 1) + thread_count - 1) / thread_count;
+                let end = ((i + 1) * (haystack.len() - needle.len() + 1) + thread_count - 1) / thread_count
+                    + needle.len()
+                    - 1;
                 sum_search(&haystack[start..end], &needle[..])
             }));
         }
